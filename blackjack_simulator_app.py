@@ -75,22 +75,45 @@ for card1 in cards:
             res = simulate_hand(hand[:], dealer_card, action, einsatz)
             results[action].append(res)
 
-    def analyse(results):
-        total = len(results)
-        wins = sum(1 for r in results if r > 0)
-        losses = sum(1 for r in results if r < 0)
-        pushes = total - wins - losses
-        avg = sum(results) / total if total else 0
-        return {
-            "win": wins / total,
-            "loss": losses / total,
-            "push": pushes / total,
-            "average": avg
-        }
+   def simulate_blackjack(player_total, dealer_card, einsatz=10, rounds=100_000):
+    cards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
 
-    stats = {a: analyse(r) for a, r in results.items()}
-    best_action = max(stats.items(), key=lambda x: x[1]["average"])
-    return stats, best_action
+    def hand_value(hand):
+        total = sum(hand)
+        # Ass als 1 zählen, wenn Gesamt > 21
+        aces = hand.count(11)
+        while total > 21 and aces:
+            total -= 10
+            aces -= 1
+        return total
+
+    def simulate_hand(hand, dealer_card, action, einsatz):
+        # Simuliere Spieleraktion (stand, hit, double)
+        player_total = hand_value(hand)
+        if action == "hit":
+            hand.append(random.choice(cards))
+            player_total = hand_value(hand)
+            if player_total > 21:
+                return -einsatz  # verloren
+        elif action == "double":
+            hand.append(random.choice(cards))
+            player_total = hand_value(hand)
+            einsatz *= 2
+            if player_total > 21:
+                return -einsatz
+
+        # Dealer zieht
+        dealer_hand = [dealer_card, random.choice(cards)]
+        dealer_total = hand_value(dealer_hand)
+        while dealer_total < 17:
+            dealer_hand.append(random.choice(cards))
+            dealer_total = hand_value(dealer_hand)
+
+        # Ergebnis
+        if player_total > 21:
+            return -einsatz
+        elif dealer_total_
+
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="Blackjack Simulator", layout="centered")
