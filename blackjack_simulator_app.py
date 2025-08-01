@@ -16,7 +16,7 @@ def hand_value(hand):
         aces -= 1
     return total
 
-def is_soft(hand);
+def is_soft(hand):
     return 11 in hand and hand_value(hand) <= 21
 
 def simulate_hand(player_hand, dealer_card, action, einsatz=10):
