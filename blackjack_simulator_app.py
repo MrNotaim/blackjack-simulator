@@ -16,7 +16,7 @@ def hand_value(hand):
         aces -= 1
     return total
 
-def is_soft(hand):
+def is_soft(hand);
     return 11 in hand and hand_value(hand) <= 21
 
 def simulate_hand(player_hand, dealer_card, action, einsatz=10):
@@ -55,10 +55,12 @@ def simulate_hand(player_hand, dealer_card, action, einsatz=10):
 def simulate_blackjack(player_total, dealer_card, einsatz=10, rounds=100_000):
     actions = ["stand", "hit", "double"]
     possible_hands = []
-    for card1 in cards:
-        for card2 in cards:
-            if hand_value([card1, card2]) == player_total:
-                possible_hands.append([card1, card2])
+for card1 in cards:
+    for card2 in cards:
+        hand = [card1, card2]
+        if hand_value(hand) == player_total:
+            possible_hands.append(hand)
+
 
     results = {a: [] for a in actions}
     results["blackjack"] = []
@@ -97,7 +99,7 @@ st.title("🃏 Blackjack Entscheidungs-Simulator")
 col1, col2 = st.columns(2)
 player_total = col1.number_input("🧍 Spieler Total", min_value=4, max_value=21, value=12)
 dealer_card = col2.number_input("🪙 Dealer Karte", min_value=2, max_value=11, value=10)
-einsatz = st.slider("💰 Einsatz (€)", 1, 500, 10, 1)
+einsatz = st.slider("💰 Einsatz (€)", 1, 1_000_000_000_000_000_000, 10, 1)
 rounds = st.slider("🔁 Runden", 1000, 500_000, 100_000, step=1000)
 
 if st.button("Simulation starten"):
