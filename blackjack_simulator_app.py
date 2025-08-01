@@ -110,8 +110,9 @@ st.title("🃏 Blackjack Entscheidungs-Simulator")
 col1, col2 = st.columns(2)
 player_total = col1.number_input("🧍 Spieler Total", min_value=4, max_value=21, value=12)
 dealer_card = col2.number_input("🪙 Dealer Karte", min_value=2, max_value=11, value=10)
-einsatz = st.slider("💰 Einsatz (€)", 1, 1_000_000_000_000_000_000, 10, 1)
+einsatz = st.number_input("💰 Einsatz (€)", min_value=1, max_value=10_000_000_000, value=10)
 rounds = st.slider("🔁 Runden", 1000, 500_000, 100_000, step=1000)
+
 
 if st.button("Simulation starten"):
     with st.spinner("Simuliere..."):
