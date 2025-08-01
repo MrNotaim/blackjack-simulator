@@ -1,30 +1,12 @@
 # blackjack_simulator_app.py
 
-import random
 import streamlit as st
 
-# --- Blackjack Hilfsfunktionen ---
-cards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
-
-def draw_card():
-    return random.choice(cards)
-
-def hand_value(hand):
-    total = sum(hand)
-    aces = hand.count(11)
-    while total > 21 and aces:
-        total -= 10
-        aces -= 1
-    return total
-
-def is_soft(hand):
-    return 11 in hand and hand_value(hand) <= 21
-
+# Basic Strategy Lookup (vereinfachte Version ohne Split)
 def basic_strategy(player_total, dealer_card):
-    # Sehr vereinfachte Strategie
     if player_total >= 17:
         return "stand"
-    elif player_total >= 13 and dealer_card <= 6:
+    elif 13 <= player_total <= 16 and dealer_card <= 6:
         return "stand"
     elif player_total == 12 and 4 <= dealer_card <= 6:
         return "stand"
@@ -37,76 +19,68 @@ def basic_strategy(player_total, dealer_card):
     else:
         return "hit"
 
-def simulate_round(player_total, dealer_card, action, einsatz):
-    player_hand = [player_total - draw_card(), draw_card()]  # Dummy Hand mit gew. total
-    while hand_value(player_hand) != player_total:
-        player_hand = [draw_card(), draw_card()]
-        if hand_value(player_hand) > player_total:
-            player_hand = [player_total - 1, 1]  # Zurücksetzen
+# Streamlit UI
+st.set_page_config(page_title="Bankroll-Verwaltung", layout="centered")
+st.title("💰 Bankroll-Verwaltung mit Strategie-Empfehlung")
 
-    if action == "double":
-        einsatz *= 2
-        player_hand.append(draw_card())
-    elif action == "hit":
-        while hand_value(player_hand) < 17:
-            player_hand.append(draw_card())
+# Session State
+if "runden" not in st.session_state:
+    st.session_state.runden = []
+if "guthaben" not in st.session_state:
+    st.session_state.guthaben = 0
+if "einsatz" not in st.session_state:
+    st.session_state.einsatz = 0
 
-    player_score = hand_value(player_hand)
-    if player_score > 21:
-        return -einsatz
-
-    dealer_hand = [dealer_card, draw_card()]
-    while hand_value(dealer_hand) < 17:
-        dealer_hand.append(draw_card())
-    dealer_score = hand_value(dealer_hand)
-
-    if dealer_score > 21 or player_score > dealer_score:
-        return einsatz
-    elif player_score < dealer_score:
-        return -einsatz
-    else:
-        return 0
-
-# --- Streamlit UI ---
-st.set_page_config(page_title="Blackjack Einsatz-Bot", layout="centered")
-st.title("🎯 Blackjack Einsatz-Strategie mit Bankroll-Verwaltung")
-
+# Input
 col1, col2 = st.columns(2)
-player_total = col1.number_input("🧍 Spieler Total", min_value=4, max_value=21, value=12)
-dealer_card = col2.number_input("🪙 Dealer Karte", min_value=2, max_value=11, value=6)
+player_total = col1.number_input("🧍 Spieler Total", 4, 21, value=12)
+dealer_card = col2.number_input("🪙 Dealer Karte", 2, 11, value=6)
 
-start_capital = st.number_input("💼 Startguthaben (€)", min_value=1, value=100_000)
-initial_bet = st.number_input("🎯 Starteinsatz (€)", min_value=1, value=10_000)
-rounds = st.slider("🔁 Anzahl Runden", 1, 100, 10)
+start_guthaben = st.number_input("💼 Startguthaben (€)", 1, 1_000_000_000, value=50_000, step=100)
+start_einsatz = st.number_input("🎯 Starteinsatz (€)", 1, 1_000_000_000, value=10_000, step=100)
+max_runden = st.slider("🔁 Anzahl Runden", 1, 100, 10)
 
-if st.button("🔍 Simulation starten"):
-    capital = start_capital
-    einsatz = initial_bet
-    verlauf = []
+empfohlene_aktion = basic_strategy(player_total, dealer_card)
+st.info(f"🧠 Empfehlung: **{empfohlene_aktion.upper()}**")
 
-    for i in range(1, rounds + 1):
-        if capital < 1:
-            verlauf.append((i, "-", einsatz, "STOP", 0, capital))
-            break
+# Buttons Runde starten
+if st.button("🆕 Neue Session starten"):
+    st.session_state.runden = []
+    st.session_state.guthaben = start_guthaben
+    st.session_state.einsatz = start_einsatz
 
-        action = basic_strategy(player_total, dealer_card)
-        einsatz = min(einsatz, capital)  # Nicht mehr setzen als Kapital
-        ergebnis = simulate_round(player_total, dealer_card, action, einsatz)
-        capital += ergebnis
+if st.session_state.guthaben <= 0:
+    st.error("❌ Kein Guthaben mehr! Bitte neue Session starten.")
+elif len(st.session_state.runden) < max_runden:
+    st.subheader(f"🎮 Runde {len(st.session_state.runden)+1}")
+    st.write(f"Einsatz: {st.session_state.einsatz} €")
+    
+    col1, col2, col3 = st.columns(3)
+    if col1.button("✅ Gewonnen"):
+        st.session_state.guthaben += st.session_state.einsatz
+        st.session_state.runden.append(
+            {"aktion": empfohlene_aktion, "einsatz": st.session_state.einsatz, "ergebnis": "Gewonnen", "guthaben": st.session_state.guthaben}
+        )
+        st.session_state.einsatz = start_einsatz  # zurücksetzen
+    if col2.button("❌ Verloren"):
+        st.session_state.guthaben -= st.session_state.einsatz
+        st.session_state.runden.append(
+            {"aktion": empfohlene_aktion, "einsatz": st.session_state.einsatz, "ergebnis": "Verloren", "guthaben": st.session_state.guthaben}
+        )
+        # 1.5x Einsatz oder so viel wie möglich
+        next_einsatz = int(st.session_state.einsatz * 1.5)
+        st.session_state.einsatz = min(next_einsatz, st.session_state.guthaben)
+    if col3.button("➖ Push"):
+        st.session_state.runden.append(
+            {"aktion": empfohlene_aktion, "einsatz": st.session_state.einsatz, "ergebnis": "Push", "guthaben": st.session_state.guthaben}
+        )
 
-        if ergebnis > 0:
-            next_bet = int(einsatz * 0.9)
-        elif ergebnis < 0:
-            next_bet = int(einsatz * 2) if capital >= einsatz * 2 else capital
-        else:
-            next_bet = einsatz
-
-        verlauf.append((i, action.upper(), einsatz, "✅" if ergebnis > 0 else ("❌" if ergebnis < 0 else "➖"), ergebnis, capital))
-        einsatz = next_bet
-
+# Verlauf anzeigen
+if st.session_state.runden:
     st.subheader("📊 Verlauf")
-    for eintrag in verlauf:
-        st.write(f"Runde {eintrag[0]} | Aktion: {eintrag[1]} | Einsatz: {eintrag[2]} € | Ergebnis: {eintrag[3]} ({eintrag[4]} €) | Guthaben: {eintrag[5]} €")
+    for i, runde in enumerate(st.session_state.runden, 1):
+        farbe = "✅" if runde["ergebnis"] == "Gewonnen" else "❌" if runde["ergebnis"] == "Verloren" else "➖"
+        st.write(f"Runde {i} | Aktion: {runde['aktion'].upper()} | Einsatz: {runde['einsatz']} € | Ergebnis: {farbe} ({runde['ergebnis']}) | Guthaben: {runde['guthaben']} €")
 
-    st.success(f"🏁 Endguthaben: {capital} €")
+    st.success(f"🏁 Endguthaben: {st.session_state.guthaben} €")
 
