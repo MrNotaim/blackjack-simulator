@@ -3,6 +3,7 @@
 import random
 import streamlit as st
 
+# --- Blackjack Hilfsfunktionen ---
 cards = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
 
 def draw_card():
@@ -19,110 +20,93 @@ def hand_value(hand):
 def is_soft(hand):
     return 11 in hand and hand_value(hand) <= 21
 
-def simulate_hand(player_hand, dealer_card, action, einsatz=10):
-    # Blackjack direkt auswerten
-    if action == "blackjack" and hand_value(player_hand) == 21 and len(player_hand) == 2:
-        dealer_hand = [dealer_card, draw_card()]
-        if hand_value(dealer_hand) == 21:
-            return 0  # Push
-        return einsatz * 1.5
+def basic_strategy(player_total, dealer_card):
+    # Sehr vereinfachte Strategie
+    if player_total >= 17:
+        return "stand"
+    elif player_total >= 13 and dealer_card <= 6:
+        return "stand"
+    elif player_total == 12 and 4 <= dealer_card <= 6:
+        return "stand"
+    elif player_total == 11:
+        return "double"
+    elif player_total == 10 and dealer_card <= 9:
+        return "double"
+    elif player_total == 9 and 3 <= dealer_card <= 6:
+        return "double"
+    else:
+        return "hit"
 
-    # Spieleraktion simulieren
+def simulate_round(player_total, dealer_card, action, einsatz):
+    player_hand = [player_total - draw_card(), draw_card()]  # Dummy Hand mit gew. total
+    while hand_value(player_hand) != player_total:
+        player_hand = [draw_card(), draw_card()]
+        if hand_value(player_hand) > player_total:
+            player_hand = [player_total - 1, 1]  # Zurücksetzen
+
     if action == "double":
+        einsatz *= 2
         player_hand.append(draw_card())
-        player_total = hand_value(player_hand)
-        if player_total > 21:
-            return -einsatz * 2
-    else:
-        while action == "hit" and hand_value(player_hand) < 21:
+    elif action == "hit":
+        while hand_value(player_hand) < 17:
             player_hand.append(draw_card())
-        player_total = hand_value(player_hand)
-        if player_total > 21:
-            return -einsatz
 
-    # Dealer zieht
-    dealer_hand = [dealer_card, draw_card()]
-    while hand_value(dealer_hand) < 17 or (hand_value(dealer_hand) == 17 and is_soft(dealer_hand)):
-        dealer_hand.append(draw_card())
-    dealer_total = hand_value(dealer_hand)
-
-    # Ergebnis berechnen
-    if player_total > 21:
+    player_score = hand_value(player_hand)
+    if player_score > 21:
         return -einsatz
-    elif dealer_total > 21 or player_total > dealer_total:
-        return einsatz * (2 if action == "double" else 1)
-    elif player_total < dealer_total:
-        return -einsatz * (2 if action == "double" else 1)
+
+    dealer_hand = [dealer_card, draw_card()]
+    while hand_value(dealer_hand) < 17:
+        dealer_hand.append(draw_card())
+    dealer_score = hand_value(dealer_hand)
+
+    if dealer_score > 21 or player_score > dealer_score:
+        return einsatz
+    elif player_score < dealer_score:
+        return -einsatz
     else:
-        return 0  # Push
-
-def simulate_blackjack(player_total, dealer_card, einsatz=10, rounds=100_000):
-    actions = ["stand", "hit", "double"]
-    possible_hands = []
-
-    # Alle 2-Karten-Kombis mit dem gewünschten player_total finden
-    for card1 in cards:
-        for card2 in cards:
-            hand = [card1, card2]
-            if hand_value(hand) == player_total:
-                possible_hands.append(hand)
-
-    if not possible_hands:
-        return {}, ("Keine gültigen Hände", {})
-
-    results = {a: [] for a in actions}
-    results["blackjack"] = []
-
-    for _ in range(rounds):
-        hand = random.choice(possible_hands)
-        # Blackjack-Check
-        if hand_value(hand) == 21 and len(hand) == 2:
-            results["blackjack"].append(simulate_hand(hand[:], dealer_card, "blackjack", einsatz))
-            continue
-
-        for action in actions:
-            res = simulate_hand(hand[:], dealer_card, action, einsatz)
-            results[action].append(res)
-
-    def analyse(results):
-        total = len(results)
-        if total == 0:
-            return {"win": 0, "loss": 0, "push": 0, "average": 0}
-        wins = sum(1 for r in results if r > 0)
-        losses = sum(1 for r in results if r < 0)
-        pushes = total - wins - losses
-        avg = sum(results) / total
-        return {
-            "win": wins / total,
-            "loss": losses / total,
-            "push": pushes / total,
-            "average": avg
-        }
-
-    stats = {action: analyse(results[action]) for action in results}
-    best_action = max(stats.items(), key=lambda x: x[1]["average"])
-    return stats, best_action
+        return 0
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="Blackjack Simulator", layout="centered")
-st.title("🃏 Blackjack Entscheidungs-Simulator")
+st.set_page_config(page_title="Blackjack Einsatz-Bot", layout="centered")
+st.title("🎯 Blackjack Einsatz-Strategie mit Bankroll-Verwaltung")
 
 col1, col2 = st.columns(2)
 player_total = col1.number_input("🧍 Spieler Total", min_value=4, max_value=21, value=12)
-dealer_card = col2.number_input("🪙 Dealer Karte", min_value=2, max_value=11, value=10)
-einsatz = st.number_input("💰 Einsatz (€)", min_value=1, max_value=10_000_000_000, value=10)
-rounds = st.slider("🔁 Runden", 1000, 500_000, 100_000, step=1000)
+dealer_card = col2.number_input("🪙 Dealer Karte", min_value=2, max_value=11, value=6)
 
+start_capital = st.number_input("💼 Startguthaben (€)", min_value=1, value=100_000)
+initial_bet = st.number_input("🎯 Starteinsatz (€)", min_value=1, value=10_000)
+rounds = st.slider("🔁 Anzahl Runden", 1, 100, 10)
 
-if st.button("Simulation starten"):
-    with st.spinner("Simuliere..."):
-        stats, best = simulate_blackjack(player_total, dealer_card, einsatz, rounds)
+if st.button("🔍 Simulation starten"):
+    capital = start_capital
+    einsatz = initial_bet
+    verlauf = []
 
-    for action, data in stats.items():
-        st.subheader(f"{action.upper()}")
-        st.write(f"✅ Gewinn: {data['win']:.2%}")
-        st.write(f"❌ Verlust: {data['loss']:.2%}")
-        st.write(f"➖ Push: {data['push']:.2%}")
-        st.write(f"📈 Ø Gewinn/Verlust pro Runde: {data['average']:.2f} €")
+    for i in range(1, rounds + 1):
+        if capital < 1:
+            verlauf.append((i, "-", einsatz, "STOP", 0, capital))
+            break
 
-    st.success(f"➡ Beste Entscheidung: **{best[0].upper()}** mit Ø {best[1]['average']:.2f} € pro Runde")
+        action = basic_strategy(player_total, dealer_card)
+        einsatz = min(einsatz, capital)  # Nicht mehr setzen als Kapital
+        ergebnis = simulate_round(player_total, dealer_card, action, einsatz)
+        capital += ergebnis
+
+        if ergebnis > 0:
+            next_bet = int(einsatz * 0.9)
+        elif ergebnis < 0:
+            next_bet = int(einsatz * 2) if capital >= einsatz * 2 else capital
+        else:
+            next_bet = einsatz
+
+        verlauf.append((i, action.upper(), einsatz, "✅" if ergebnis > 0 else ("❌" if ergebnis < 0 else "➖"), ergebnis, capital))
+        einsatz = next_bet
+
+    st.subheader("📊 Verlauf")
+    for eintrag in verlauf:
+        st.write(f"Runde {eintrag[0]} | Aktion: {eintrag[1]} | Einsatz: {eintrag[2]} € | Ergebnis: {eintrag[3]} ({eintrag[4]} €) | Guthaben: {eintrag[5]} €")
+
+    st.success(f"🏁 Endguthaben: {capital} €")
+
